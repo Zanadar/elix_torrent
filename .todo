@@ -1,0 +1,8 @@
+1. Parse torrent file passed to the application a display it
+2. Connect to the tracker at the anounce key
+3. Parse the tracker request
+4. connect to the peers
+5. handshake with peers
+
+
+www.kristenwidman.com/blog/33/how-to-write-a-bittorrent-client-part-1/
