@@ -27,6 +27,6 @@ defmodule ElixTorrent.Mixfile do
   #
   # Type "mix help deps" for more examples and options
   defp deps do
-    [{:httpoison, "~> 0.9.0"}, {:benlixir, "~> 0.1.7", hex: :bendy}]
+    [{:httpoison, "~> 0.9.0"}, {:benlixir, "~> 0.1.7", hex: :bendy}, {:bento, "~> 0.9.2"}]
   end
 end
