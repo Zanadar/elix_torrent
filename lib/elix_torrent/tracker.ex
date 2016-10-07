@@ -1,11 +1,18 @@
 defmodule ElixTorrent.Tracker do
-
   def start(path) do
     {:ok, metafile} = File.read path
-    case make_request({ :ok, metafile }) do
-      {:ok, response} -> response.body
-      other -> other
-    end
+    opts = [:binary, active: false]
+    with {:ok, tracker_response} <- make_request({ :ok, metafile }),
+         {:ok, decoded_reponse} <- Bencode.decode(tracker_response.body),
+         {:ok, peers_list} <- ElixTorrent.Peer.get_peers(decoded_reponse["peers"]),
+         [peer1 | rest] = peers_list,
+         {ip, port} <- ElixTorrent.Peer.print_peer(peer1),
+         {:ok, socket} <- :gen_tcp.connect(ip, port, opts) do
+        {:ok, socket}
+       else
+         :error -> {:error, :cannot_connect}
+         error -> error
+       end
   end
 
   defp make_request({:ok, torrent_dict}) do
