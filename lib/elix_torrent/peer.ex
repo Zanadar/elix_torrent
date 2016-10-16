@@ -1,31 +1,46 @@
-defmodule ElixTorrent.Peer do
-  use Bitwise
-  require IEx
+defmodule Peer do
+  use GenServer
+  alias ElixTorrent.Peer.Util
 
-  defstruct ip: nil, port: nil
+  @initial_state %{socket: nil}
 
-  def get_peers(peers_binary) when rem(byte_size(peers_binary), 6) != 0, do: {:error, :bad_length}
-
-  def get_peers(peers_binary) do
-    parse_peers([], peers_binary)
+  def start_link(peer_info) do
+    GenServer.start_link(__MODULE__, [@initial_state, peer_info])
   end
 
-  defp parse_peers(peers_list, <<>>) do
-    {:ok, peers_list}
+  def command(pid, cmd) do
+    GenServer.call(pid, {:command, cmd})
   end
 
-  defp parse_peers(peers_list, <<ip::binary-size(4), port::binary-size(2), rest::binary>>) do
-    peers_list = [%__MODULE__{ip: ip, port: port} | peers_list]
-    parse_peers(peers_list, rest)
+  def init([state, peer_info]) do
+    opts = [:binary, active: false]
+    with {ip, port} <- Util.print_peer(peer_info),
+        {:ok, socket} <- :gen_tcp.connect(ip, port, opts),
+        do: {:ok, %{state | socket: socket}}
   end
 
-  def print_peer(peer) do
-    <<a, b, c, d>> = peer.ip
-    [a, b, c, d] = Enum.map([a, b, c, d], &Integer.to_string/1)
-    ip_string = a <> "." <> b <> "." <> c <> "." <> d
-    ip_list = to_charlist ip_string
-    <<a, b>> = peer.port
-    port = (a <<< 8)  + b
-    {ip_list, port}
+  def handle_call({:command, cmd}, from, %{socket: socket} = state) do
+    {type, _} = cmd
+    :ok = :gen_tcp.send(socket, Peer.Wire.encode(cmd))
+
+    {:ok, msg} = :gen_tcp.recv(socket, 0)
+    {:reply, Peer.Wire.decode({type, msg}), state}
+  end
+end
+
+defmodule Peer.Wire do
+  # TDD this
+  def encode({:handshake, info_hash}) do
+    pstrlen = <<19>>
+    pstr = "BitTorrent protocol"
+    reserved = <<0::size(64)>>
+    peer_id = "-TZ-0000-00000000000"
+    pstrlen<>pstr<>reserved<>info_hash<>peer_id
+  end
+
+  def decode({:handshake, peer_handshake}) do
+    <<pstrlen, rest::binary>> = peer_handshake
+    <<pstr::bytes-size(pstrlen), reserved::bytes-size(8), info_hash::bytes-size(20), peer_id::bytes-size(20), rest::binary>> = rest
+    {pstrlen, pstr, reserved, info_hash, peer_id, rest}
   end
 end

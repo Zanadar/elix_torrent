@@ -1,14 +1,14 @@
 defmodule ElixTorrent.Tracker do
+  alias ElixTorrent.Peer.Util
+
   def start(path) do
     {:ok, metafile} = File.read path
-    opts = [:binary, active: false]
     with {:ok, tracker_response} <- make_request({ :ok, metafile }),
          {:ok, decoded_reponse} <- Bencode.decode(tracker_response.body),
-         {:ok, peers_list} <- ElixTorrent.Peer.get_peers(decoded_reponse["peers"]),
+         {:ok, peers_list} <- Util.get_peers(decoded_reponse["peers"]),
          [peer1 | rest] = peers_list,
-         {ip, port} <- ElixTorrent.Peer.print_peer(peer1),
-         {:ok, socket} <- :gen_tcp.connect(ip, port, opts) do
-        {:ok, socket}
+         {:ok, pid} = Peer.start_link(peer1) do
+           {:ok, pid, metafile}
        else
          :error -> {:error, :cannot_connect}
          error -> error
@@ -17,7 +17,7 @@ defmodule ElixTorrent.Tracker do
 
   defp make_request({:ok, torrent_dict}) do
     case Bencode.decode_with_info_hash torrent_dict do
-      {:ok, data, checksum} -> get {data, checksum}
+      {:ok, data, checksum} -> get({data, checksum})
       {:error, reason} -> IO.puts reason
     end
   end
